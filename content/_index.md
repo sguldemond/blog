@@ -1,1 +1,1 @@
-Blogging about software and more
+I write things about software and more
