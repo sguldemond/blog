@@ -1,6 +1,6 @@
 # CV
 
-![portrait picture](/portait.jpeg)
+![portrait picture](/portrait.jpeg)
 
 ## Introduction
 
