@@ -1,0 +1,5 @@
+---
+domain_online: stansyfert.online
+domain_com: stansyfert.com
+website_git_repo_url: https://github.com/sguldemond/blog.git
+ssh_key: /home/stan/.ssh/local/id_ed25519

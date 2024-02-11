@@ -1,0 +1,94 @@
+- name: Setup Ubuntu VPS for website hosting
+  hosts: webserver
+  remote_user: root
+  become: true
+
+  vars_files:
+    - vars.yml
+
+  tasks:
+    - name: Install snapd with apt
+      ansible.builtin.apt:
+        name: snapd
+        state: present
+
+    - name: Create blog directory and pull website git repo
+      become_user: stan
+      ansible.builtin.git:
+        repo: "{{ website_git_repo_url }}"
+        dest: /home/stan/blog
+        version: main
+        key_file: "{{ ssh_key }}"
+
+    - name: Install Hugo with snap
+      community.general.snap:
+        name: hugo
+
+    - name: Build the website with Hugo
+      become_user: stan
+      ansible.builtin.command: hugo
+      args:
+        chdir: /home/stan/blog
+      register: hugo_output
+      changed_when: hugo_output.rc != 0
+
+    - name: Copy public folder to /var/www
+      ansible.posix.synchronize:
+        src: /home/stan/blog/public/
+        dest: /var/www/blog/
+      delegate_to: "{{ inventory_hostname }}"
+
+    - name: Set ownership of blog dir
+      ansible.builtin.file:
+        path: /var/www/blog
+        owner: www-data
+        group: www-data
+        mode: '0755'
+
+    - name: Install Nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+
+    - name: Set initial Nginx configuration for Certbot
+      ansible.builtin.copy:
+        src: nginx-init.conf
+        dest: "/etc/nginx/sites-available/{{ domain_online }}"
+        mode: '0755'
+
+    - name: Enable initial Nginx configuration
+      ansible.builtin.file:
+        src: "/etc/nginx/sites-available/{{ domain_online }}"
+        dest: "/etc/nginx/sites-enabled/{{ domain_online }}"
+        state: link
+      notify: Reload Nginx
+
+    - name: Install Certbot with snap
+      community.general.snap:
+        name: certbot
+        classic: true
+
+    - name: Run Certbot for .online domain names
+      ansible.builtin.command: certbot --nginx --non-interactive --agree-tos --redirect -d "{{ domain_online }}" -d "www.{{ domain_online }}"
+      register: certbot_online_output
+      changed_when: certbot_online_output.rc != 0
+
+    - name: Run Certbot for .com domain names
+      ansible.builtin.command: certbot --nginx --non-interactive --agree-tos --redirect -d "{{ domain_com }}" -d "www.{{ domain_com }}"
+      register: certbot_com_output
+      changed_when: certbot_com_output.rc != 0
+
+    - name: Set final Nginx configuration for hosting on HTTPS
+      ansible.builtin.copy:
+        src: nginx-ssl.conf
+        dest: "/etc/nginx/sites-available/{{ domain_online }}"
+        mode: '0755'
+      notify: Reload Nginx
+
+
+  handlers:
+    - name: Reload Nginx
+      ansible.builtin.systemd:
+        name: nginx
+        state: reloaded
+        enabled: true
