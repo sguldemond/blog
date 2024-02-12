@@ -1,0 +1,45 @@
+# Depends on init_server playbook being run before
+
+- name: Deploy blog on VPS
+  hosts: webserver
+  remote_user: root
+  become: true
+
+  vars_files:
+    - vars.yml
+
+  tasks:
+    - name: Pull website git repo
+      become_user: stan
+      ansible.builtin.git:
+        repo: "{{ website_git_repo_url }}"
+        dest: /home/stan/blog
+        version: main
+        key_file: "{{ ssh_key }}"
+
+    - name: Build the website with Hugo
+      become_user: stan
+      ansible.builtin.command: hugo
+      args:
+        chdir: /home/stan/blog
+      register: hugo_output
+      changed_when: hugo_output.rc != 0
+
+    - name: Copy public folder to /var/www
+      ansible.posix.synchronize:
+        src: /home/stan/blog/public/
+        dest: /var/www/blog/
+      delegate_to: "{{ inventory_hostname }}"
+
+    - name: Set ownership of blog dir
+      ansible.builtin.file:
+        path: /var/www/blog
+        owner: www-data
+        group: www-data
+        mode: '0755'
+
+    - name: Reload Nginx
+      ansible.builtin.systemd:
+        name: nginx
+        state: reloaded
+        enabled: true
