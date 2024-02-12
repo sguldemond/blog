@@ -1,4 +1,6 @@
 # Depends on user 'stan' added to 'sudo' group and setup with SSH key
+# Also domain names are pointing at this server
+# Tested on Hetzner VPS running Ubuntu 22.04
 
 - name: Setup Ubuntu VPS for website hosting
   hosts: webserver
@@ -18,7 +20,7 @@
         name: snapd
         state: present
 
-    - name: Create blog directory and pull website git repo
+    - name: Pull website git repo
       become_user: stan
       ansible.builtin.git:
         repo: "{{ website_git_repo_url }}"
